@@ -8,20 +8,37 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Find the app folder
+        run: |
+          P=$(find . -maxdepth 3 -name package.json -not -path '*/node_modules/*' | head -1)
+          if [ -z "$P" ]; then echo "package.json was not found anywhere in the repo. Upload the contents of planner-app.zip to the repo."; ls -R | head -50; exit 1; fi
+          echo "APP_DIR=$(dirname "$P")" >> "$GITHUB_ENV"
+          echo "App folder: $(dirname "$P")"
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 17 }
-      - run: npm install
-      - run: npx cap add android
-      - run: pip install pillow && python3 scripts/make_icons.py
-      - run: node scripts/patch-android.js
-      - run: npx cap sync android
+      - name: Install packages
+        working-directory: ${{ env.APP_DIR }}
+        run: npm install
+      - name: Add Android project
+        working-directory: ${{ env.APP_DIR }}
+        run: npx cap add android
+      - name: Make app icons
+        working-directory: ${{ env.APP_DIR }}
+        run: pip install pillow && python3 scripts/make_icons.py
+      - name: Add native code
+        working-directory: ${{ env.APP_DIR }}
+        run: node scripts/patch-android.js
+      - name: Sync web files
+        working-directory: ${{ env.APP_DIR }}
+        run: npx cap sync android
       - name: Build debug APK
-        working-directory: android
+        working-directory: ${{ env.APP_DIR }}/android
         run: chmod +x gradlew && ./gradlew assembleDebug
       - uses: actions/upload-artifact@v4
         with:
           name: academic-planner-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: ${{ env.APP_DIR }}/android/app/build/outputs/apk/debug/app-debug.apk
+          
           
